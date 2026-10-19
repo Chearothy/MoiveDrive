@@ -1,14 +1,26 @@
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddCors(o => o.AddPolicy("frontend", p =>
-    p.WithOrigins(builder.Configuration["FrontendOrigin"] ?? "http://localhost:5173")
-     .AllowAnyHeader().AllowAnyMethod()));
+// Add Services
 builder.Services.AddControllers();
-builder.Services.AddHttpClient();
+
+// Configure CORS for video streaming
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .WithExposedHeaders("Content-Range", "Content-Length", "Accept-Ranges");
+    });
+});
 
 var app = builder.Build();
-app.UseHttpsRedirection();
-app.UseCors("frontend");
+
+app.UseRouting();
+app.UseCors("AllowAll");
+app.UseAuthorization();
+
 app.MapControllers();
-app.MapGet("/", () => Results.Ok(new { app = "DriveFull API", status = "running", loginRequired = false }));
+
 app.Run();
