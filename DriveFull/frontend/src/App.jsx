@@ -1,213 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import './style.css';
+import { useEffect, useMemo, useState } from 'react';
+import { Folder, Film, Settings, Search, RefreshCw, ExternalLink, ChevronRight, Plus, Trash2 } from 'lucide-react';
 
-export default function App() {
-  const API_BASE = import.meta.env.VITE_API_BASE || 'https://localhost:7001';
+const API = import.meta.env.VITE_API_BASE || 'https://localhost:7001';
+const KEY = 'drivefull.sources.v1';
 
-  const [files, setFiles] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [shareTokenInput, setShareTokenInput] = useState('');
-  const [activeShareToken, setActiveShareToken] = useState(null);
-  const [message, setMessage] = useState('');
+function readSources(){ try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }
 
-  // Fetch file list on initial load
-  useEffect(() => {
-    fetchFiles();
-  }, []);
-
-  const fetchFiles = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/drive/files`);
-      if (res.ok) {
-        const data = await res.json();
-        setFiles(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch files:', err);
-    }
-  };
-
-  // Handle file upload
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!selectedFile) return;
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
-    setUploading(true);
-    setMessage('');
-
-    try {
-      const res = await fetch(`${API_BASE}/api/drive/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        setMessage('File uploaded successfully!');
-        setSelectedFile(null);
-        e.target.reset();
-        fetchFiles();
-      } else {
-        setMessage('Upload failed.');
-      }
-    } catch (err) {
-      console.error('Upload error:', err);
-      setMessage('Error uploading file.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Handle file deletion
-  const handleDelete = async (fileId) => {
-    if (!window.confirm('Are you sure you want to delete this file?')) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/api/drive/files/${fileId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        setMessage('File deleted successfully.');
-        fetchFiles();
-      } else {
-        setMessage('Failed to delete file.');
-      }
-    } catch (err) {
-      console.error('Delete error:', err);
-      setMessage('Error deleting file.');
-    }
-  };
-
-  // Helper to check if file is a video
-  const isVideo = (filename) => {
-    return /\.(mp4|webm|ogg|mov|mkv)$/i.test(filename);
-  };
-
-  // Get share URL by token
-  const getShareUrl = (token) => `${API_BASE}/api/drive/share/${token}`;
-
-  return (
-    <div className="app-container" style={{ maxWidth: '900px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1>Drive File Manager</h1>
-
-      {message && <div style={{ padding: '10px', background: '#e2e2e2', borderRadius: '4px', marginBottom: '15px' }}>{message}</div>}
-
-      {/* --- SECTION 1: UPLOAD FORM --- */}
-      <section style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>
-        <h3>Upload File</h3>
-        <form onSubmit={handleUpload} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <input 
-            type="file" 
-            onChange={(e) => setSelectedFile(e.target.files[0])} 
-            required 
-          />
-          <button type="submit" disabled={uploading} style={{ padding: '8px 16px', cursor: 'pointer' }}>
-            {uploading ? 'Uploading...' : 'Upload'}
-          </button>
-        </form>
-      </section>
-
-      {/* --- SECTION 2: VIEW SHARED LINK DIRECTLY --- */}
-      <section style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>
-        <h3>View Shared File</h3>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-          <input 
-            type="text" 
-            placeholder="Enter Share Token" 
-            value={shareTokenInput}
-            onChange={(e) => setShareTokenInput(e.target.value)}
-            style={{ flex: 1, padding: '8px' }}
-          />
-          <button 
-            onClick={() => setActiveShareToken(shareTokenInput)} 
-            style={{ padding: '8px 16px', cursor: 'pointer' }}
-          >
-            Load Preview
-          </button>
-        </div>
-
-        {activeShareToken && (
-          <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '6px', textAlign: 'center' }}>
-            <h4>Previewing Shared Token: {activeShareToken}</h4>
-            
-            {/* Native Video Player supporting Range Streams */}
-            <div style={{ maxWidth: '700px', margin: '15px auto' }}>
-              <video 
-                controls 
-                width="100%" 
-                preload="metadata"
-                crossOrigin="anonymous"
-                style={{ borderRadius: '6px', backgroundColor: '#000' }}
-              >
-                <source src={getShareUrl(activeShareToken)} type="video/mp4" />
-                <source src={getShareUrl(activeShareToken)} type="video/webm" />
-                Your browser does not support HTML5 video playback.
-              </video>
-            </div>
-
-            <a 
-              href={getShareUrl(activeShareToken)} 
-              download 
-              style={{ display: 'inline-block', padding: '8px 16px', background: '#007bff', color: '#fff', textDecoration: 'none', borderRadius: '4px' }}
-            >
-              Download File
-            </a>
-          </div>
-        )}
-      </section>
-
-      {/* --- SECTION 3: MY FILES LIST --- */}
-      <section style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '6px' }}>
-        <h3>My Files</h3>
-        {files.length === 0 ? (
-          <p>No files found.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #ddd' }}>
-                <th style={{ padding: '8px' }}>Filename</th>
-                <th style={{ padding: '8px' }}>Share Token</th>
-                <th style={{ padding: '8px' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {files.map((file) => (
-                <tr key={file.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '8px' }}>
-                    {file.fileName} {isVideo(file.fileName) && '🎥'}
-                  </td>
-                  <td style={{ padding: '8px', fontSize: '0.9em', color: '#555' }}>
-                    {file.shareToken || 'N/A'}
-                  </td>
-                  <td style={{ padding: '8px', display: 'flex', gap: '8px' }}>
-                    {file.shareToken && (
-                      <button 
-                        onClick={() => setActiveShareToken(file.shareToken)}
-                        style={{ padding: '4px 8px', cursor: 'pointer' }}
-                      >
-                        Play / View
-                      </button>
-                    )}
-                    <a 
-                      href={`${API_BASE}/api/drive/files/download/${file.id}`} 
-                      download
-                      style={{ padding: '4px 8px', background: '#28a745', color: '#fff', textDecoration: 'none', borderRadius: '3px', fontSize: '0.85em' }}
-                    >
-                      Download
-                    </a>
-                    <button 
-                      onClick={() => handleDelete(file.id)}
-                      style={{ padding: '4px 8px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+export default function App(){
+  const [sources,setSources]=useState(readSources), [name,setName]=useState(''), [link,setLink]=useState('');
+  const [active,setActive]=useState(null), [items,setItems]=useState([]), [query,setQuery]=useState(''), [message,setMessage]=useState('Website នេះមិនត្រូវការ Login ទេ។ ប្រើ Public Google Drive Folder Link។'), [loading,setLoading]=useState(false), [tab,setTab]=useState('home');
+  useEffect(()=>{localStorage.setItem(KEY,JSON.stringify(sources));},[sources]);
+  useEffect(()=>{setMessage('Website នេះមិនត្រូវការ Login ទេ។ Folder ត្រូវបើកសិទ្ធិ Anyone with the link — Viewer។');},[]);
+  const visible=useMemo(()=>items.filter(x=>x.name?.toLowerCase().includes(query.toLowerCase())),[items,query]);
+  async function browse(source){
+    setActive(source);setLoading(true);setMessage('កំពុងអាន Google Drive…');setItems([]);
+    try{
+      const endpoint=`${API}/api/drive/public-children?folderLink=${encodeURIComponent(source.link)}`;
+      const res=await fetch(endpoint);
+      const data=await res.json();if(!res.ok)throw new Error(data.message||'មិនអាចអាន Folder បានទេ។');
+      const rows=data.items||data.files||[];
+      setItems(rows.map(x=>({...x,isFolder:x.isFolder??x.mimeType==='application/vnd.google-apps.folder',previewUrl:x.previewUrl||(x.mimeType?.startsWith('video/')?`https://drive.google.com/file/d/${x.id}/preview`:null)})));
+      setMessage(`បានទាញយកឯកសារ ${rows.length} មុខ តាម Public Link។`);
+    }catch(e){setMessage(e.message||'មានបញ្ហាក្នុងការអាន Folder។');}
+    finally{setLoading(false);}
+  }
+  function addSource(e){e.preventDefault();if(!link.trim()){setMessage('សូមបញ្ចូល Google Drive Folder link។');return;}
+    const s={id:crypto.randomUUID(),name:name.trim()||'Drive Folder',link:link.trim()};
+    setSources(prev=>[...prev,s]);setName('');setLink('');setMessage('បានរក្សាទុក Link ក្នុង Browser។ ចុច Browse ដើម្បីពិនិត្យសិទ្ធិ។');
+  }
+  const filteredSources=sources.filter(s=>s.name.toLowerCase().includes(query.toLowerCase()));
+  return <main className="app">
+    <nav className="topbar"><a className="brand" href="#" onClick={e=>{e.preventDefault();setTab('home');}}><span className="logo">▶</span> MY DRIVE <b>VIDEO LIBRARY</b></a>
+      <div className="navs"><button className={tab==='home'?'selected':''} onClick={()=>setTab('home')}>Home</button><button className={tab==='settings'?'selected':''} onClick={()=>setTab('settings')}><Settings size={15}/> Settings</button>
+      <span className="public-label">No Login Required</span></div></nav>
+    {tab==='home'?<><header className="hero"><div className="eyebrow">YOUR PERSONAL LIBRARY</div><h1>Browse your folders,<br/><span>play from Drive.</span></h1><p>បញ្ចូល Public Google Drive Folder Link — មិនចាំបាច់ Login ទេ។</p><div className="searchbar"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ស្វែងរក Folder ឬវីដេអូ…"/><button onClick={()=>active?browse(active):setMessage('ជ្រើស Folder មួយជាមុន។')}><RefreshCw size={15}/> Refresh</button></div></header>
+      <section className="content"><h2>{active?active.name:'Folder របស់អ្នក'}</h2><p className="status">{message}{loading?' ⏳':''}</p>{!active?<div className="cards">{filteredSources.map(s=><button className="folder-card" key={s.id} onClick={()=>browse(s)}><Folder/><span><b>{s.name}</b><small>ចុចដើម្បីបើក Folder</small></span><ChevronRight/></button>)}</div>:<><button className="back" onClick={()=>{setActive(null);setItems([]);}}>← ត្រឡប់ទៅ Folder</button><div className="cards">{visible.map(f=><article className="file-card" key={f.id}>{f.isFolder?<Folder/>:<Film/>}<b>{f.name}</b><small>{f.isFolder?'Folder':f.mimeType}</small>{f.mimeType?.startsWith('video/')&&<><div className="player"><iframe src={f.previewUrl} title={f.name} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/></div><a href={f.webViewLink||`https://drive.google.com/file/d/${f.id}/view`} target="_blank" rel="noreferrer">បើកក្នុង Drive <ExternalLink size={13}/></a></>}{f.isFolder&&<button onClick={()=>browse({...active,name:f.name,link:`https://drive.google.com/drive/folders/${f.id}`})}>បើក Folder <ChevronRight size={14}/></button>}</article>)}</div></>}</section>
+    </>:<section className="settings"><div className="eyebrow">PERSONAL SETTINGS</div><h1>ភ្ជាប់ Google Drive Folder</h1><p className="status">Website មិនត្រូវការ Login ទេ។ Folder ត្រូវបានកំណត់ Share → General access → Anyone with the link → Viewer។ Folder ឯកជនមិនអាចបើកតាមវិធីនេះបានទេ។</p>
+      <form className="form" onSubmit={addSource}><label>ឈ្មោះ Folder (ស្រេចចិត្ត)</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="ឧ. Training videos"/><label>Google Drive Folder Link</label><input type="url" required value={link} onChange={e=>setLink(e.target.value)} placeholder="https://drive.google.com/drive/folders/..."/><button className="primary"><Plus size={16}/> បន្ថែម Folder</button></form>
+      <h2>Folder ដែលបានរក្សាទុក ({sources.length})</h2><div className="saved">{sources.map(s=><div className="saved-row" key={s.id}><Folder/><span><b>{s.name}</b><small>{s.link}</small></span><button onClick={()=>browse(s).then(()=>setTab('home'))}>Browse</button><button className="remove" onClick={()=>setSources(p=>p.filter(x=>x.id!==s.id))}><Trash2 size={15}/></button></div>)}</div>
+      <p className="note">Folder Link ត្រូវបានរក្សាទុកក្នុង Browser នេះប៉ុណ្ណោះ។ មិនមានការផ្ទេរ ឬកែប្រែឯកសារដើមក្នុង Drive ទេ។ ដើម្បីរក្សាឯកជនភាព សូមកុំបើក Anyone with the link សម្រាប់ឯកសារសម្ងាត់។</p><button onClick={()=>setTab('home')}>← ត្រឡប់ Home</button>
+    </section>}
+    <footer>React + ASP.NET Core Web API · Google Drive API</footer>
+  </main>;
+}
