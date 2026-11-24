@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Key File Maker - Fixed</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:18px 12px;background:#0b1120;color:#eef3ff;font-family:Arial,system-ui,sans-serif}
+main{max-width:760px;margin:auto}header{text-align:center;padding:12px 0 20px}h1{font-size:30px;margin:8px 0}p{color:#aab6d0;line-height:1.5}
+.panel{background:#162239;border:1px solid #304363;border-radius:18px;padding:18px;margin:14px 0}
+.head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:12px;font-weight:bold}
+.count{font-size:14px;color:#b7c5e1;font-weight:normal}
+textarea{width:100%;height:260px;padding:16px;background:#0b1427;color:#fff;border:2px solid #304363;border-radius:15px;font:16px/1.7 monospace;resize:vertical}
+textarea:focus{outline:2px solid #91aaff}
+.hint{font-size:14px;margin:10px 2px 16px}
+button{width:100%;padding:16px;margin:6px 0;border:0;border-radius:12px;font-size:17px;font-weight:bold;cursor:pointer}
+#generate{background:#91aaff;color:#101a33}#clear{background:#824157;color:white}#download{background:#126c59;color:white}button:disabled{opacity:.4}
+.result{padding:16px;background:#0b1427;border:1px solid #304363;border-radius:13px;min-height:90px;overflow-wrap:anywhere}
+#status{min-height:24px;font-size:14px;color:#9ce5c7;margin-top:10px}
+.warning{font-size:13px;color:#f2dda9;background:#302918;border:1px solid #6b5930;border-radius:12px;padding:12px}
+</style>
+</head>
+<body>
+<main>
+<header><h1>API Key File Maker</h1><p>Paste your keys, generate JSON, and download your file.</p></header>
+
+<section class="panel">
+ <div class="head"><label for="keys">Paste API keys</label><span class="count" id="count">0 keys detected</span></div>
+ <textarea id="keys" placeholder="YOUR_API_KEY1&#10;YOUR_API_KEY2&#10;YOUR_API_KEY3" spellcheck="false"></textarea>
+ <p class="hint">One key per line. You can also paste JSON containing a "keys" array.</p>
+ <button id="generate" type="button">Generate API File</button>
+ <button id="clear" type="button">Clear</button>
+</section>
+
+<section class="panel">
+ <div class="head"><span>Generated result</span><span class="count" id="fileState">Not generated</span></div>
+ <div class="result" id="result">Your generated API_key.json summary will appear here.</div>
+ <button id="download" type="button" disabled>Download API_key.json</button>
+ <div id="status" role="status"></div>
+</section>
+
+<p class="warning"><b>Security:</b> This page processes keys on your device only. Do not share the downloaded file. Revoke and replace any keys that have been exposed.</p>
+</main>
+
+<script>
+(function () {
+  var input = document.getElementById('keys');
+  var count = document.getElementById('count');
+  var result = document.getElementById('result');
+  var fileState = document.getElementById('fileState');
+  var status = document.getElementById('status');
+  var download = document.getElementById('download');
+  var output = '';
+
+  function getKeys() {
+    var raw = input.value.trim();
+    if (!raw) return [];
+    if (raw.charAt(0) === '{' || raw.charAt(0) === '[') {
+      var parsed = JSON.parse(raw);
+      var list = Array.isArray(parsed) ? parsed : parsed.keys;
+      if (!Array.isArray(list)) throw new Error('JSON must contain a keys array.');
+      return list.map(function (x) { return String(x).trim(); }).filter(function (x) { return x.length > 0; });
+    }
+    return raw.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(function (x) { return x.length > 0; });
+  }
+
+  function updateCount() {
+    try {
+      var n = getKeys().length;
+      count.textContent = n + (n === 1 ? ' key detected' : ' keys detected');
+      status.textContent = '';
+    } catch (e) {
+      count.textContent = 'Invalid JSON';
+      status.textContent = e.message;
+    }
+  }
+
+  input.addEventListener('input', updateCount);
+
+  document.getElementById('generate').addEventListener('click', function () {
+    try {
+      var list = getKeys();
+      if (list.length === 0) throw new Error('No keys found. Paste one or more keys first.');
+      output = JSON.stringify({type:'kd-keys', keys:list}, null, 2);
+      result.textContent = 'API_key.json is ready. ' + list.length + ' key(s) included. Key values are hidden in this preview.';
+      fileState.textContent = 'Ready';
+      download.disabled = false;
+      status.textContent = 'Success! Tap Download API_key.json.';
+    } catch (e) {
+      output = '';
+      download.disabled = true;
+      fileState.textContent = 'Not generated';
+      status.textContent = e.message;
+    }
+  });
+
+  download.addEventListener('click', function () {
+    if (!output) return;
+    var blob = new Blob([output], {type:'application/json;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'API_key.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    status.textContent = 'Download started. Check your Downloads folder.';
+  });
+
+  document.getElementById('clear').addEventListener('click', function () {
+    input.value = '';
+    output = '';
+    download.disabled = true;
+    count.textContent = '0 keys detected';
+    fileState.textContent = 'Not generated';
+    result.textContent = 'Your generated API_key.json summary will appear here.';
+    status.textContent = '';
+    input.focus();
+  });
+
+  updateCount();
+})();
+</script>
+</body>
+</html>
